@@ -38,7 +38,10 @@ static int ebt_pmtud_mt_check(const struct xt_mtchk_param *par)
 	const struct ebt_pmtud_info *info = par->matchinfo;
 	const struct ebt_entry *e = par->entryinfo;
 
-	if (e->size < 20)		/* TODO: make real check */
+	if (e->ethproto != htons(ETH_P_IP) ||
+	    !(e->invflags & EBT_IPROTO))
+		return -EINVAL;
+	if (info->size < 20)		/* TODO: make real check */
 		return -EINVAL;
 	return 0;
 }

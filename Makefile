@@ -1,7 +1,7 @@
 KDIR ?= /lib/modules/`uname -r`/build
 
-obj-m  := ebt_arpreply.o
-#obj-m  := ebt_pmtud.o
+#obj-m  := ebt_arpreply.o
+obj-m  := ebt_pmtud.o
 
 default:
 	$(MAKE) -C $(KDIR) M=$$PWD
