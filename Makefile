@@ -3,8 +3,11 @@ KDIR ?= /lib/modules/`uname -r`/build
 #obj-m  := ebt_arpreply.o
 obj-m  := ebt_pmtud.o
 
-default:
-	$(MAKE) -C $(KDIR) M=$$PWD
+all: ebt_pmtud.ko libebt_pmtud.so
 
-.DEFAULT:
+%.ko:
 	$(MAKE) -C $(KDIR) M=$$PWD $@
+
+clean:
+	$(MAKE) -C $(KDIR) M=$$PWD clean
+	rm -f *.ko *.o 

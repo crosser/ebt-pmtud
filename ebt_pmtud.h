@@ -9,7 +9,7 @@
 
 struct ebt_pmtud_info
 {
-	__be32 size;
+	__u32 size;
 };
 
 #endif

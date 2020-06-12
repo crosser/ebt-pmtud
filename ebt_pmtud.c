@@ -49,7 +49,7 @@ ebt_pmtud_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		return false;
 	if (!(ih->frag_off & htons(IP_DF)) || skb->ignore_df)
 		return false;
-	return !skb_validate_network_len(skb, be32_to_cpu(info->size));
+	return !skb_validate_network_len(skb, info->size);
 }
 
 static int ebt_pmtud_mt_check(const struct xt_mtchk_param *par)
