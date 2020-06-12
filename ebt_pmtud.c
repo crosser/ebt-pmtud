@@ -20,6 +20,22 @@
 #include "ebt_pmtud.h"
 
 static bool
+skb_validate_network_len(const struct sk_buff *skb, unsigned int mtu)
+{
+	/* Before relying on skb, check if required pointers were set. */
+	if (unlikely(!skb_mac_header_was_set(skb) ||
+	    !skb_transport_header_was_set(skb))) {
+		pr_warn_ratelimited("skb_unfragmentable_size: skb not ready");
+		return true;
+	}
+	if (!skb_is_gso(skb))
+		return skb->len - (skb_network_header(skb) -
+					skb_mac_header(skb)) <= mtu;
+
+	return skb_gso_validate_network_len(skb, mtu);
+}
+
+static bool
 ebt_pmtud_mt(const struct sk_buff *skb, struct xt_action_param *par)
 {
 	const struct ebt_pmtud_info *info = par->matchinfo;
@@ -29,8 +45,11 @@ ebt_pmtud_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	ih = skb_header_pointer(skb, 0, sizeof(_iph), &_iph);
 	if (ih == NULL)
 		return false;
-
-	return true;
+	if (ih->protocol != IPPROTO_TCP)
+		return false;
+	if (!(ih->frag_off & htons(IP_DF)) || skb->ignore_df)
+		return false;
+	return !skb_validate_network_len(skb, be32_to_cpu(info->size));
 }
 
 static int ebt_pmtud_mt_check(const struct xt_mtchk_param *par)
@@ -38,7 +57,8 @@ static int ebt_pmtud_mt_check(const struct xt_mtchk_param *par)
 	const struct ebt_pmtud_info *info = par->matchinfo;
 	const struct ebt_entry *e = par->entryinfo;
 
-	if (e->ethproto != htons(ETH_P_IP) ||
+	if ((e->ethproto != htons(ETH_P_IP) &&
+	     e->ethproto != htons(ETH_P_IPV6)) ||
 	    !(e->invflags & EBT_IPROTO))
 		return -EINVAL;
 	if (info->size < 20)		/* TODO: make real check */
