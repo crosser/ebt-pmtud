@@ -30,9 +30,9 @@ static const struct option opts[] = {
 static void help(void)
 {
 	printf(
-"pmtud options:\n"
-"--pmtud-size  [!] size        : MTU size to trigger ICMP response\n"
-);
+	"pmtud options:\n"
+	"--pmtud-size  size        : MTU size to trigger ICMP response\n"
+	);
 }
 
 #define OPT_SIZE 1

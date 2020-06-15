@@ -1,4 +1,7 @@
 #!/usr/bin/sudo sh
+
+SBIN=/usr/local/sbin
+
 brctl addbr pmtubr
 for leg in 1 2; do
 	ip netns add pmtuns$leg
@@ -11,9 +14,9 @@ for leg in 1 2; do
 done
 ip link set pmtubr up
 
-ebtables-nft -N divert
-ebtables-nft -A divert --log -j ACCEPT
-ebtables-nft -A FORWARD -p IPv4 --ip-protocol TCP -j divert
+${SBIN}/ebtables-nft -N divert
+${SBIN}/ebtables-nft -A divert --log -j ACCEPT
+${SBIN}/ebtables-nft -A FORWARD -p IPv4 --ip-protocol TCP -j divert
 
 #  sudo ip netns exec pmtuns2 nc -l -p 9999
 #  sudo ip netns exec pmtuns1 nc 192.168.168.192 9999

@@ -12,11 +12,11 @@
  */
 #include <linux/if_ether.h>
 #include <linux/ip.h>
-#include <net/ip.h>
 #include <linux/in.h>
 #include <linux/module.h>
 #include <linux/netfilter/x_tables.h>
 #include <linux/netfilter_bridge/ebtables.h>
+#include <net/ip.h>
 #include "ebt_pmtud.h"
 
 static bool
@@ -57,9 +57,8 @@ static int ebt_pmtud_mt_check(const struct xt_mtchk_param *par)
 	const struct ebt_pmtud_info *info = par->matchinfo;
 	const struct ebt_entry *e = par->entryinfo;
 
-	if ((e->ethproto != htons(ETH_P_IP) &&
-	     e->ethproto != htons(ETH_P_IPV6)) ||
-	    !(e->invflags & EBT_IPROTO))
+	if (e->ethproto != htons(ETH_P_IP) &&
+	    e->ethproto != htons(ETH_P_IPV6))
 		return -EINVAL;
 	if (info->size < 20)		/* TODO: make real check */
 		return -EINVAL;
