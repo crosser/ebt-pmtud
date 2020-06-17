@@ -14,9 +14,9 @@ for leg in 1 2; do
 done
 ip link set pmtubr up
 
-${SBIN}/ebtables-nft -N divert
-${SBIN}/ebtables-nft -A divert --log -j ACCEPT
-${SBIN}/ebtables-nft -A FORWARD -p IPv4 --ip-protocol TCP --pmtud-size 64 -j divert
+${SBIN}/ebtables-nft -A FORWARD -p IPv4 --ip-protocol TCP --pmtud-size 576 \
+	--log -j PMTUD
+${SBIN}/ebtables-nft -L
 
 #  sudo ip netns exec pmtuns2 nc -l -p 9999
 #  sudo ip netns exec pmtuns1 nc 192.168.168.192 9999

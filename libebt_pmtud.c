@@ -75,7 +75,22 @@ static struct xtables_match brpmtud_match = {
 	.extra_opts	= opts,
 };
 
-void _init(void)
+static struct xtables_target brpmtud_target = {
+	.name		= "PMTUD",
+	.version	= XTABLES_VERSION,
+	.family		= NFPROTO_BRIDGE,
+	.size		= XT_ALIGN(sizeof(struct ebt_pmtud_tg_info)),
+	.userspacesize	= XT_ALIGN(sizeof(struct ebt_pmtud_tg_info)),
+	/*
+	.help		= help,
+	.parse		= parse,
+	.print		= print,
+	.extra_opts	= opts,
+	*/
+};
+
+static void _init(void)
 {
 	xtables_register_match(&brpmtud_match);
+	xtables_register_target(&brpmtud_target);
 }

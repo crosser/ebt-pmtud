@@ -3,9 +3,11 @@
  *
  *	Author:
  *	Eugene Crosser <crosser@average.org>
- *	copied after ARP module written by:
+ *	copied after ARP/ARPREPLY modules written by:
  *	Bart De Schuymer <bdschuym@pandora.be>
  *	Tim Gardner <timg@tpi.com>
+ *	Grzegorz Borowiak <grzes@gnu.univ.gda.pl>
+ *	Bart De Schuymer <bdschuym@pandora.be>
  *
  *  June, 2020
  *
@@ -25,18 +27,23 @@
 # define DPRINT(...) /* */
 #endif
 
+/*** Match ***/
+
 static bool
 skb_validate_network_len(const struct sk_buff *skb, unsigned int mtu)
 {
 	/* Before relying on skb, check if required pointers were set. */
+	/*
 	if (unlikely(!skb_mac_header_was_set(skb) ||
 	    !skb_transport_header_was_set(skb))) {
 		pr_warn_ratelimited("skb_unfragmentable_size: skb not ready");
 		return true;
 	}
+	*/
 	if (!skb_is_gso(skb))
-		return skb->len - (skb_network_header(skb) -
-					skb_mac_header(skb)) <= mtu;
+		return skb->len -
+			(skb_network_header(skb) - skb_mac_header(skb))
+				<= mtu;
 
 	return skb_gso_validate_network_len(skb, mtu);
 }
@@ -64,7 +71,8 @@ ebt_pmtud_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	return !result;
 }
 
-static int ebt_pmtud_mt_check(const struct xt_mtchk_param *par)
+static int
+ebt_pmtud_mt_check(const struct xt_mtchk_param *par)
 {
 	const struct ebt_pmtud_info *info = par->matchinfo;
 	const struct ebt_entry *e = par->entryinfo;
@@ -87,13 +95,71 @@ static struct xt_match ebt_pmtud_mt_reg __read_mostly = {
 	.me		= THIS_MODULE,
 };
 
+/*** Target ***/
+
+static unsigned int
+ebt_pmtud_tg(struct sk_buff *skb, const struct xt_action_param *par)
+{
+	const struct ebt_pmtud_tg_info *info = par->targinfo;
+	const struct iphdr *ih;
+	struct iphdr _iph;
+
+	ih = skb_header_pointer(skb, 0, sizeof(_iph), &_iph);
+	if (ih == NULL)
+		return EBT_DROP;
+	if (skb->protocol == htons(ETH_P_IP))
+		DPRINT("PMTUD: send_icmp4_frag_needed(skb)");
+	else if (skb->protocol == htons(ETH_P_IPV6))
+		DPRINT("PMTUD: send_icmp6_packet_too_big(skb)");
+	else
+		pr_warn_ratelimited("pmtud: unsupprted protocol 0x%04x",
+				    ntohs(skb->protocol));
+	return EBT_DROP;
+
+}
+
+static int
+ebt_pmtud_tg_check(const struct xt_tgchk_param *par)
+{
+	const struct ebt_pmtud_tg_info *info = par->targinfo;
+	const struct ebt_entry *e = par->entryinfo;
+
+	DPRINT("PMTUD: target check, ethproto=0x%04x\n", ntohs(e->ethproto));
+	if (e->ethproto != htons(ETH_P_IP) &&
+	    e->ethproto != htons(ETH_P_IPV6))
+		return -EINVAL;
+	return 0;
+}
+
+static struct xt_target ebt_pmtud_tg_reg __read_mostly = {
+	.name		= "PMTUD",
+	.revision	= 0,
+	.family		= NFPROTO_BRIDGE,
+	.table		= "filter",
+	.hooks		= (1 << NF_BR_PRE_ROUTING)
+			| (1 << NF_BR_LOCAL_IN)
+			| (1 << NF_BR_FORWARD)
+			| (1 << NF_BR_LOCAL_OUT)
+			| (1 << NF_BR_POST_ROUTING),
+	.target		= ebt_pmtud_tg,
+	.checkentry	= ebt_pmtud_tg_check,
+	.targetsize	= sizeof(struct ebt_pmtud_tg_info),
+	.me		= THIS_MODULE,
+};
+
 static int __init ebt_pmtud_init(void)
 {
-	return xt_register_match(&ebt_pmtud_mt_reg);
+	int rc;
+
+	rc = xt_register_match(&ebt_pmtud_mt_reg);
+	if (rc)
+		return rc;
+	return xt_register_target(&ebt_pmtud_tg_reg);
 }
 
 static void __exit ebt_pmtud_fini(void)
 {
+	xt_unregister_target(&ebt_pmtud_tg_reg);
 	xt_unregister_match(&ebt_pmtud_mt_reg);
 }
 
