@@ -3,7 +3,7 @@
  *
  *	Author:
  *	Eugene Crosser <crosser@average.org>
- *	copied after PMTUD module written by:
+ *	copied after ARP module written by:
  *	Bart De Schuymer <bdschuym@pandora.be>
  *	Tim Gardner <timg@tpi.com>
  *
@@ -18,6 +18,12 @@
 #include <linux/netfilter_bridge/ebtables.h>
 #include <net/ip.h>
 #include "ebt_pmtud.h"
+
+#if 1
+# define DPRINT(...) printk(__VA_ARGS__)
+#else
+# define DPRINT(...) /* */
+#endif
 
 static bool
 skb_validate_network_len(const struct sk_buff *skb, unsigned int mtu)
@@ -41,15 +47,21 @@ ebt_pmtud_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	const struct ebt_pmtud_info *info = par->matchinfo;
 	const struct iphdr *ih;
 	struct iphdr _iph;
+	bool result;
 
 	ih = skb_header_pointer(skb, 0, sizeof(_iph), &_iph);
 	if (ih == NULL)
 		return false;
 	if (ih->protocol != IPPROTO_TCP)
 		return false;
+	DPRINT("pmtud: tcp frame size %d, gso=%s, frag_off=0x%04x\n",
+		skb->len, skb_is_gso(skb)?"yes":"no", ntohs(ih->frag_off));
 	if (!(ih->frag_off & htons(IP_DF)) || skb->ignore_df)
 		return false;
-	return !skb_validate_network_len(skb, info->size);
+	result = skb_validate_network_len(skb, info->size);
+	DPRINT("pmtud: skb_validate_network_len(...,%d) returned %d\n",
+		info->size, result);
+	return !result;
 }
 
 static int ebt_pmtud_mt_check(const struct xt_mtchk_param *par)
@@ -60,7 +72,7 @@ static int ebt_pmtud_mt_check(const struct xt_mtchk_param *par)
 	if (e->ethproto != htons(ETH_P_IP) &&
 	    e->ethproto != htons(ETH_P_IPV6))
 		return -EINVAL;
-	if (info->size < 20)		/* TODO: make real check */
+	if (info->size < 576)
 		return -EINVAL;
 	return 0;
 }
