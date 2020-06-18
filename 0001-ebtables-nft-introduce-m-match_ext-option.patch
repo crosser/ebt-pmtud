@@ -1,0 +1,46 @@
+From f648f3a0bfacdac32488d907312909d0122c2cb5 Mon Sep 17 00:00:00 2001
+From: Eugene Crosser <evgenii.cherkashin@cloud.ionos.com>
+Date: Thu, 18 Jun 2020 12:23:56 +0200
+Subject: [PATCH] ebtables-nft: introduce '-m <match_ext>' option
+
+`iptables` command has an option '-m' to dynamically load match
+extentions (shared objects in the <lib-path>/xtables directory).
+`ebtables` command has no such option, making it impossible to add new
+extentions without recompiling the program.
+
+This patch adds functionality of dynamic loading of match extentions,
+bringing `ebtables` command on par with `iptables` command. (Note that
+dynamic loading of _target_ extentions works in `ebtables` the same way
+as in `iptables` out of the box.)
+
+Signed-off-by: Eugene Crosser <crosser@average.org>
+---
+ iptables/xtables-eb.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/iptables/xtables-eb.c b/iptables/xtables-eb.c
+index 6641a21a..d4bf336e 100644
+--- a/iptables/xtables-eb.c
++++ b/iptables/xtables-eb.c
+@@ -800,7 +800,7 @@ int do_commandeb(struct nft_handle *h, int argc, char *argv[], char **table,
+ 
+ 	/* Getopt saves the day */
+ 	while ((c = getopt_long(argc, argv,
+-	   "-A:D:C:I:N:E:X::L::Z::F::P:Vhi:o:j:c:p:s:d:t:M:", opts, NULL)) != -1) {
++	   "-A:D:C:I:N:E:X::L::Z::F::P:Vhi:o:j:c:p:s:d:t:M:m:", opts, NULL)) != -1) {
+ 		cs.c = c;
+ 		cs.invert = ebt_invert;
+ 		switch (c) {
+@@ -1100,6 +1100,9 @@ print_zero:
+ 				xtables_error(PARAMETER_PROBLEM,
+ 					      "Sorry, protocols have values above or equal to 0x0600");
+ 			break;
++		case 'm':
++			ebt_load_match(optarg);
++			break;
+ 		case 4  : /* Lc */
+ 			ebt_check_option2(&flags, LIST_C);
+ 			if (command != 'L')
+-- 
+2.25.1
+
