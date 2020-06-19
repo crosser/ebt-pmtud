@@ -10,12 +10,7 @@
 struct ebt_pmtud_info
 {
 	__u32 size;
-};
-
-#define EBT_PMTUD_TARGET "PMTUD"
-
-struct ebt_pmtud_tg_info {
-	__u32 maxmtu;
+	__u8 suppress;
 };
 
 #endif

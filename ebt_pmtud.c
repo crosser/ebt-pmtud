@@ -28,7 +28,7 @@
 # define DPRINT(...) /* */
 #endif
 
-/*** ICMP Sender ***/
+/*** ICMP sending functions ***/
 
 /*
  *  Created on: May 27, 2019
@@ -71,7 +71,7 @@ static inline void frag_needed_fill_icmp4_header(struct icmphdr *icmp_hdr,
  *    Fill IP header with data.
  */
 static inline void frag_needed_fill_ip4_header(struct iphdr *hdr,
-	struct sk_buff *orig_skb, int tot_len)
+	const struct sk_buff *orig_skb, int tot_len)
 {
 	static u16 icmp_ident = 0;
 	struct iphdr *orig_ip_hdr = ip_hdr(orig_skb);
@@ -97,7 +97,7 @@ static inline void frag_needed_fill_ip4_header(struct iphdr *hdr,
  *   Fill IPv6 header with data.
  */
 static inline void frag_needed_fill_ip6_header(struct ipv6hdr *hdr,
-	struct sk_buff *orig_skb, u16 payload_len)
+	const struct sk_buff *orig_skb, u16 payload_len)
 {
 	struct ipv6hdr *orig_ip6_hdr = ipv6_hdr(orig_skb);
 
@@ -119,7 +119,7 @@ static inline void frag_needed_fill_ip6_header(struct ipv6hdr *hdr,
  *    Fill ethernet header with data.
  */
 static inline void frag_needed_fill_eth_header(struct ethhdr *hdr,
-	struct sk_buff *orig_skb, __be16 proto)
+	const struct sk_buff *orig_skb, __be16 proto)
 {
 	struct ethhdr *orig_eth_hdr = eth_hdr(orig_skb);
 
@@ -143,7 +143,7 @@ static inline void frag_needed_fill_eth_header(struct ethhdr *hdr,
  *		negative error code otherwise.
  */
 static int send_icmp4_frag_needed(struct net_device *dev,
-	struct sk_buff *orig_skb, int mtu_max)
+	const struct sk_buff *orig_skb, int mtu_max)
 {
 	u8 *pkt;
 	int pkt_len;
@@ -225,7 +225,7 @@ free_skb:
  * the host discovered as a sender in given @skb.
  */
 static int send_icmp6_packet_too_big(struct net_device *dev,
-	struct sk_buff *orig_skb, int mtu_max)
+	const struct sk_buff *orig_skb, int mtu_max)
 {
 	u8 *pkt;
 	int pkt_len;
@@ -335,7 +335,7 @@ ebt_pmtud_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	const struct ebt_pmtud_info *info = par->matchinfo;
 	const struct iphdr *ih;
 	struct iphdr _iph;
-	bool result;
+	bool fits;
 
 	ih = skb_header_pointer(skb, 0, sizeof(_iph), &_iph);
 	if (ih == NULL)
@@ -346,10 +346,28 @@ ebt_pmtud_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		skb->len, skb_is_gso(skb)?"yes":"no", ntohs(ih->frag_off));
 	if (!(ih->frag_off & htons(IP_DF)) || skb->ignore_df)
 		return false;
-	result = skb_validate_network_len(skb, info->size);
-	DPRINT("pmtud: skb_validate_network_len(...,%d) returned %d\n",
-		info->size, result);
-	return !result;
+	fits = skb_validate_network_len(skb, info->size);
+	DPRINT("pmtud: skb_validate_network_len(...,%d) %s\n",
+		info->size, fits?"fits":"does not fit");
+	if (fits)
+		return false;
+	if (info->suppress)
+		return true;
+
+	/* send ICMP "frag needed" / "too big" */
+	if (skb->protocol == htons(ETH_P_IP)) {
+		DPRINT("pmtud: send_icmp4_frag_needed() over %s",
+				xt_inname(par));
+		send_icmp4_frag_needed(xt_in(par), skb, info->size);
+	} else if (skb->protocol == htons(ETH_P_IPV6)) {
+		DPRINT("pmtud: send_icmp6_packet_too_big(skb) over %s",
+				xt_inname(par));
+		send_icmp6_packet_too_big(xt_in(par), skb, info->size);
+	} else
+		pr_warn_ratelimited(
+		"pmtud: got frame with unsupprted ethproto 0x%04x from %s",
+				    ntohs(skb->protocol), xt_inname(par));
+	return true;
 }
 
 static int
@@ -376,79 +394,17 @@ static struct xt_match ebt_pmtud_mt_reg __read_mostly = {
 	.me		= THIS_MODULE,
 };
 
-/*** Target ***/
-
-static unsigned int
-ebt_pmtud_tg(struct sk_buff *skb, const struct xt_action_param *par)
-{
-	const struct ebt_pmtud_tg_info *info = par->targinfo;
-	const struct iphdr *ih;
-	struct iphdr _iph;
-
-	ih = skb_header_pointer(skb, 0, sizeof(_iph), &_iph);
-	if (ih == NULL)
-		return EBT_DROP;
-	if (skb->protocol == htons(ETH_P_IP)) {
-		DPRINT("PMTUD: send_icmp4_frag_needed() over %s", xt_inname(par));
-		send_icmp4_frag_needed(xt_in(par), skb, 576 /*info->maxmtu*/);
-	} else if (skb->protocol == htons(ETH_P_IPV6)) {
-		DPRINT("PMTUD: send_icmp6_packet_too_big(skb) over %s", xt_inname(par));
-		send_icmp6_packet_too_big(xt_in(par), skb, 576 /*info->maxmtu*/);
-	} else
-		pr_warn_ratelimited("pmtud: unsupprted protocol 0x%04x",
-				    ntohs(skb->protocol));
-	return EBT_DROP;
-
-}
-
-static int
-ebt_pmtud_tg_check(const struct xt_tgchk_param *par)
-{
-	const struct ebt_pmtud_tg_info *info = par->targinfo;
-	const struct ebt_entry *e = par->entryinfo;
-
-	DPRINT("PMTUD: target check, ethproto=0x%04x\n", ntohs(e->ethproto));
-	if (e->ethproto != htons(ETH_P_IP) &&
-	    e->ethproto != htons(ETH_P_IPV6))
-		return -EINVAL;
-	/* if (info->maxmtu < 576)
-		return -EINVAL; */
-	return 0;
-}
-
-static struct xt_target ebt_pmtud_tg_reg __read_mostly = {
-	.name		= "PMTUD",
-	.revision	= 0,
-	.family		= NFPROTO_BRIDGE,
-	.table		= "filter",
-	.hooks		= (1 << NF_BR_PRE_ROUTING)
-			| (1 << NF_BR_LOCAL_IN)
-			| (1 << NF_BR_FORWARD)
-			| (1 << NF_BR_LOCAL_OUT)
-			| (1 << NF_BR_POST_ROUTING),
-	.target		= ebt_pmtud_tg,
-	.checkentry	= ebt_pmtud_tg_check,
-	.targetsize	= sizeof(struct ebt_pmtud_tg_info),
-	.me		= THIS_MODULE,
-};
-
 static int __init ebt_pmtud_init(void)
 {
-	int rc;
-
-	rc = xt_register_match(&ebt_pmtud_mt_reg);
-	if (rc)
-		return rc;
-	return xt_register_target(&ebt_pmtud_tg_reg);
+	return xt_register_match(&ebt_pmtud_mt_reg);
 }
 
 static void __exit ebt_pmtud_fini(void)
 {
-	xt_unregister_target(&ebt_pmtud_tg_reg);
 	xt_unregister_match(&ebt_pmtud_mt_reg);
 }
 
 module_init(ebt_pmtud_init);
 module_exit(ebt_pmtud_fini);
-MODULE_DESCRIPTION("Ebtables: PMTUD packet match and target");
+MODULE_DESCRIPTION("Ebtables: PMTUD packet match and ICMP sender");
 MODULE_LICENSE("GPL");

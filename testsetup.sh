@@ -15,7 +15,7 @@ done
 ip link set pmtubr up
 
 ${SBIN}/ebtables-nft -A FORWARD -p IPv4 --ip-protocol TCP \
-	-m pmtud --pmtud-size 576 --log -j PMTUD
+	-m pmtud --pmtud-size 576 --log -j DROP
 ${SBIN}/ebtables-nft -L
 
 #  sudo ip netns exec pmtuns2 nc -l -p 9999

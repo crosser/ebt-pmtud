@@ -20,10 +20,12 @@
 
 #include "ebt_pmtud.h"
 
-#define PMTUD_SIZE   '1'
+#define PMTUD_SIZE	's'
+#define PMTUD_SUPPRESS	'n'
 
 static const struct option opts[] = {
-	{ "pmtud-size"    , required_argument, 0, PMTUD_SIZE },
+	{ "pmtud-size"		, required_argument, 0, PMTUD_SIZE },
+	{ "pmtud-suppress-icmp"	, no_argument,       0, PMTUD_SUPPRESS },
 	XT_GETOPT_TABLEEND,
 };
 
@@ -31,7 +33,8 @@ static void help(void)
 {
 	printf(
 	"pmtud options:\n"
-	"--pmtud-size  size        : MTU size to trigger ICMP response\n"
+	"--pmtud-size size      : MTU size to fit\n"
+	"--pmtud-suppress-icmp  : suppress ICMP response\n"
 	);
 }
 
@@ -50,6 +53,8 @@ parse(int c, char **argv, int invert, unsigned int *flags,
 	case PMTUD_SIZE:
 		pmtudinfo->size = strtol(optarg, &end, 10);
 		break;
+	case PMTUD_SUPPRESS:
+		pmtudinfo->suppress = 1;
 	default:
 		return 0;
 	}
@@ -60,7 +65,8 @@ static void print(const void *ip, const struct xt_entry_match *match, int numeri
 {
 	const struct ebt_pmtud_info *pmtudinfo = (struct ebt_pmtud_info *)match->data;
 
-	printf("--pmtud-size %d ", pmtudinfo->size);
+	printf("--pmtud-size %d%s ", pmtudinfo->size,
+		       pmtudinfo->suppress?" --pmtud-suppress-icmp":"");
 }
 
 static struct xtables_match brpmtud_match = {
@@ -75,22 +81,7 @@ static struct xtables_match brpmtud_match = {
 	.extra_opts	= opts,
 };
 
-static struct xtables_target brpmtud_target = {
-	.name		= "PMTUD",
-	.version	= XTABLES_VERSION,
-	.family		= NFPROTO_BRIDGE,
-	.size		= XT_ALIGN(sizeof(struct ebt_pmtud_tg_info)),
-	.userspacesize	= XT_ALIGN(sizeof(struct ebt_pmtud_tg_info)),
-	/*
-	.help		= help,
-	.parse		= parse,
-	.print		= print,
-	.extra_opts	= opts,
-	*/
-};
-
 static void _init(void)
 {
 	xtables_register_match(&brpmtud_match);
-	xtables_register_target(&brpmtud_target);
 }
