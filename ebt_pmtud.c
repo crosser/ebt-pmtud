@@ -22,12 +22,6 @@
 #include <net/ip.h>
 #include "ebt_pmtud.h"
 
-#if 1
-# define DPRINT(...) printk(__VA_ARGS__)
-#else
-# define DPRINT(...) /* */
-#endif
-
 /*** ICMP sending functions ***/
 
 /*
@@ -342,12 +336,12 @@ ebt_pmtud_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		return false;
 	if (ih->protocol != IPPROTO_TCP)
 		return false;
-	DPRINT("pmtud: tcp frame size %d, gso=%s, frag_off=0x%04x\n",
+	pr_debug("pmtud: tcp frame size %d, gso=%s, frag_off=0x%04x\n",
 		skb->len, skb_is_gso(skb)?"yes":"no", ntohs(ih->frag_off));
 	if (!(ih->frag_off & htons(IP_DF)) || skb->ignore_df)
 		return false;
 	fits = skb_validate_network_len(skb, info->size);
-	DPRINT("pmtud: skb_validate_network_len(...,%d) %s\n",
+	pr_debug("pmtud: skb_validate_network_len(...,%d) %s\n",
 		info->size, fits?"fits":"does not fit");
 	if (fits)
 		return false;
@@ -356,11 +350,11 @@ ebt_pmtud_mt(const struct sk_buff *skb, struct xt_action_param *par)
 
 	/* send ICMP "frag needed" / "too big" */
 	if (skb->protocol == htons(ETH_P_IP)) {
-		DPRINT("pmtud: send_icmp4_frag_needed() over %s",
+		pr_debug("pmtud: send_icmp4_frag_needed() over %s",
 				xt_inname(par));
 		send_icmp4_frag_needed(xt_in(par), skb, info->size);
 	} else if (skb->protocol == htons(ETH_P_IPV6)) {
-		DPRINT("pmtud: send_icmp6_packet_too_big(skb) over %s",
+		pr_debug("pmtud: send_icmp6_packet_too_big(skb) over %s",
 				xt_inname(par));
 		send_icmp6_packet_too_big(xt_in(par), skb, info->size);
 	} else
