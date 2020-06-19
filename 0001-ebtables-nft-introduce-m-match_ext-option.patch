@@ -1,4 +1,4 @@
-From f648f3a0bfacdac32488d907312909d0122c2cb5 Mon Sep 17 00:00:00 2001
+From 7932426a919cf35e9d25cf87771b222e1e394401 Mon Sep 17 00:00:00 2001
 From: Eugene Crosser <evgenii.cherkashin@cloud.ionos.com>
 Date: Thu, 18 Jun 2020 12:23:56 +0200
 Subject: [PATCH] ebtables-nft: introduce '-m <match_ext>' option
@@ -15,9 +15,27 @@ as in `iptables` out of the box.)
 
 Signed-off-by: Eugene Crosser <crosser@average.org>
 ---
- iptables/xtables-eb.c | 5 ++++-
- 1 file changed, 4 insertions(+), 1 deletion(-)
+ iptables/ebtables-nft.8 | 6 +++---
+ iptables/xtables-eb.c   | 5 ++++-
+ 2 files changed, 7 insertions(+), 4 deletions(-)
 
+diff --git a/iptables/ebtables-nft.8 b/iptables/ebtables-nft.8
+index 1fa5ad93..181f742d 100644
+--- a/iptables/ebtables-nft.8
++++ b/iptables/ebtables-nft.8
+@@ -504,9 +504,9 @@ If used with the
+ .IR pcnt ", resp. " bcnt " will match."
+ 
+ .SS MATCH EXTENSIONS
+-Ebtables extensions are dynamically loaded into the userspace tool,
+-there is therefore no need to explicitly load them with a
+--m option like is done in iptables.
++Standard ebtables extensions are dynamically loaded into the userspace tool,
++while custom extentions need to explicitly loaded with a
++-m option like it is done in iptables.
+ These extensions deal with functionality supported by kernel modules supplemental to
+ the core ebtables code.
+ .SS 802_3
 diff --git a/iptables/xtables-eb.c b/iptables/xtables-eb.c
 index 6641a21a..d4bf336e 100644
 --- a/iptables/xtables-eb.c
