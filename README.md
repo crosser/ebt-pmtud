@@ -21,10 +21,13 @@ is possible. Sending of ICMP responses can be suppressed with
 
 ## Example match (for individual interface to keep counter separate):
 
+```
 sudo ebtables-nft -A FORWARD -m pmtud -i n02aabbccddee \
 	-p IPv4 --ip-protocol TCP --pmtud-size 576 -j DROP
+```
 
 ## To see the counters:
 
+```
 sudo ebtables-nft -L --Lc
-
+```
